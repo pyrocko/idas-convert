@@ -15,7 +15,7 @@ setuptools.setup(
     ],
     entry_points={
         'console_scripts': [
-            'idas_convert = idas_convert:main',
+            'idas_convert = idas_convert.app:main',
         ]},
 
     classifiers=[
