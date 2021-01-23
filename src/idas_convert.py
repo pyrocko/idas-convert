@@ -50,6 +50,7 @@ class Stats(object):
     time_processing: float = 0.
 
     time_start: float = time()
+    processed_tmax: float = 0.
 
     def new_io_load(self, t, bytes):
         self.io_load_t = t
@@ -79,6 +80,10 @@ class Stats(object):
         return timedelta(seconds=s)
 
     @property
+    def duration(self):
+        return timedelta(seconds=time() - self.time_start)
+
+    @property
     def io_load_speed(self):
         return (self.io_load_bytes / 1e6) / \
             (self.io_load_t or 1.)
@@ -88,13 +93,17 @@ class Stats(object):
         return (self.io_load_bytes_total / 1e6) / \
             (self.io_load_t_total or 1.)
 
+    @property
+    def processed_tmax_str(self):
+        return tts(self.processed_tmax)
 
-def split(trace, time):
-    if not trace.tmin < time < trace.tmax:
-        return (trace, )
 
-    return (trace.chop(trace.tmin, time, inplace=False),
-            trace.chop(time, trace.tmax, inplace=False, include_last=True))
+def split(tr, time):
+    try:
+        return (tr.chop(tr.tmin, time, inplace=False),
+                tr.chop(time, tr.tmax, inplace=False, include_last=True))
+    except trace.NoData:
+        return (tr, )
 
 
 def tdms_guess_time(path):
@@ -202,6 +211,7 @@ class iDASConvert(object):
 
         self.tmin = tmin
         self.tmax = tmax
+        self.processed_tmax = 0.
 
         self.nthreads = nthreads
         self.batch_size = batch_size
@@ -210,6 +220,7 @@ class iDASConvert(object):
         self.finished_batch = Signal(self)
         self.before_file_read = Signal(self)
         self.new_traces_converted = Signal(self)
+        self.finished = Signal(self)
 
         self.plugins = plugins
         for plugin in self.plugins:
@@ -223,7 +234,7 @@ class iDASConvert(object):
     def nfiles_left(self):
         return len(self.nfiles)
 
-    def start(self):
+    def start(self, checkpt_file=None):
         logger.info('Starting conversion of %d files', self.nfiles)
         stats = self.stats
         t_start = time()
@@ -261,13 +272,20 @@ class iDASConvert(object):
             stats.finished_batch(len(load_files))
 
             tmax_prev = batch_tmax + 1./self.downsample_to
+            stats.processed_tmax = tmax_prev
+            if checkpt_file:
+                with open(checkpt_file, 'w') as f:
+                    f.write(str(stats.processed_tmax))
 
             logger.info(
-                'Processed {s.nfiles_processed}/{s.nfiles_total} files'
-                ' (DS: {s.tprocessing:.2f},'
+                'Processed {s.nfiles_processed}/{s.nfiles_total} files,'
+                ' head at {s.processed_tmax_str:.22}.'
+                ' DS: {s.tprocessing:.2f},'
                 ' IO: {s.io_load_t:.2f}/{s.io_save_t:.2f}'
-                ' [load: {s.io_load_speed:.2f} MB/s]).'
-                ' {s.time_remaining} remaining'.format(s=stats))
+                ' [load: {s.io_load_speed:.2f} MB/s].'
+                ' Estimated time rmaining: {s.time_remaining}'.format(s=stats))
+
+        self.finished.dispatch()
 
         logger.info('Finished. Processed %d files in %.2f s',
                     stats.nfiles_processed, time() - t_start)
@@ -374,7 +392,8 @@ class iDASConvertConfig(Object):
         default='ID',
         help='Network code for MiniSeeds.')
     new_channel_code = String.T(
-        default='HSF')
+        default='HSF',
+        help='Channel code for MiniSeeds.')
 
     tmin = Timestamp.T(
         optional=True,

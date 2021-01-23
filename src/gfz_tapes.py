@@ -112,16 +112,16 @@ class GFZTapes(Plugin):
             fns_tape = set(op.relpath(fn, self.path_tapes_mount)
                            for fn in unstaged_files)
 
-            logger.debug('staging %d files', len(fns_tape))
+            logger.debug('Staging %d files', len(fns_tape))
             self._stage_files(fns_tape)
 
             self.requested_files |= fns_tape
-            logger.info('requested %s', sizeof_fmt(nbytes_unstaged))
+            logger.info('Requested %s', sizeof_fmt(nbytes_unstaged))
             self._initial_stage = True
 
         else:
             logger.info(
-                'staging waterlevel ok (%.1f%%, %s)',
+                'Staging waterlevel ok (%.1f%%, %s)',
                 (nbytes_staged / nbytes) * 100., sizeof_fmt(nbytes_staged))
 
     def release(self, files):

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class TelegramBot(Plugin):
 
     def __init__(self, token, chat_id,
-                 status_interval=60.):
+                 status_interval=3600.):
         import telebot
 
         self.token = token
@@ -55,6 +55,7 @@ class TelegramBot(Plugin):
         logging.getLogger().addHandler(handler)
 
         parent.finished_batch.register(self.send_status)
+        parent.finished.register(self.send_finished)
         self.send_message(
             'Conversion of %d files started.' % self.parent.nfiles)
 
@@ -64,6 +65,14 @@ class TelegramBot(Plugin):
         except Exception as e:
             logger.exception(e)
 
+    def send_finished(self, *args):
+        s = self.parent.stats
+        self.send_message(
+            'Finished processing {s.nfiles_processed} files'
+            ' ({size_processed}) in {s.duration}.'.format(
+                s=s,
+                size_processed=sizeof_fmt(s.io_load_bytes_total)))
+
     def send_status(self, *args):
         if time() < self._next_status:
             return
@@ -71,9 +80,10 @@ class TelegramBot(Plugin):
         logger.debug('sending status message')
         stats = self.parent.stats
         self.send_message(
-            'Converted {s.nfiles_processed}/{s.nfiles_total} files'
-            ' (Total {size_processed}), {s.time_remaining} remaining. '
-            'Average input {s.io_load_speed_avg:.1f} MB/s.'.format(
+            'Processed {s.nfiles_processed}/{s.nfiles_total} files '
+            ' ({size_processed} @ {s.io_load_speed_avg:.1f} MB/s).'
+            ' Head is at {s.processed_tmax_str:.19}.'
+            ' Estimated time remaining {s.time_remaining}. '.format(
                 s=stats,
                 size_processed=sizeof_fmt(stats.io_load_bytes_total)))
 
