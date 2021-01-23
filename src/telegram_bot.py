@@ -83,7 +83,7 @@ class TelegramBot(Plugin):
             'Processed {s.nfiles_processed}/{s.nfiles_total} files '
             ' ({size_processed} @ {s.io_load_speed_avg:.1f} MB/s).'
             ' Head is at {s.processed_tmax_str:.19}.'
-            ' Estimated time remaining {s.time_remaining}. '.format(
+            ' Estimated time remaining {s.time_remaining_str}. '.format(
                 s=stats,
                 size_processed=sizeof_fmt(stats.io_load_bytes_total)))
 

@@ -80,6 +80,10 @@ class Stats(object):
         return timedelta(seconds=s)
 
     @property
+    def time_remaining_str(self):
+        return str(self.time_remaining)[:-7]
+
+    @property
     def duration(self):
         return timedelta(seconds=time() - self.time_start)
 
@@ -279,11 +283,12 @@ class iDASConvert(object):
 
             logger.info(
                 'Processed {s.nfiles_processed}/{s.nfiles_total} files,'
-                ' head at {s.processed_tmax_str:.22}.'
+                ' head at {s.processed_tmax_str}.'
                 ' DS: {s.tprocessing:.2f},'
                 ' IO: {s.io_load_t:.2f}/{s.io_save_t:.2f}'
                 ' [load: {s.io_load_speed:.2f} MB/s].'
-                ' Estimated time rmaining: {s.time_remaining}'.format(s=stats))
+                ' Estimated time rmaining: {s.time_remaining_str}'.format(
+                    s=stats))
 
         self.finished.dispatch()
 
@@ -364,8 +369,12 @@ class iDASConvert(object):
     def get_traces_end(self, traces, overlap=1.):
         trs_chopped = []
         for tr in traces:
-            trs_chopped.append(
-                tr.chop(tr.tmax - overlap, tr.tmax, inplace=False))
+            try:
+                trs_chopped.append(
+                    tr.chop(tr.tmax - overlap, tr.tmax, inplace=False))
+            except trace.NoData:
+                return []
+
         return trs_chopped
 
 

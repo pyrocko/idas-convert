@@ -61,7 +61,12 @@ def main():
             % op.relpath(checkpt_file))
 
     converter = config.get_converter()
-    converter.start(checkpt_file=checkpt_file)
+
+    try:
+        converter.start(checkpt_file=checkpt_file)
+    except Exception as e:
+        logger.exception(e)
+        raise e
 
     os.remove(checkpt_file)
 
