@@ -63,7 +63,7 @@ def main():
     converter = config.get_converter()
 
     try:
-        converter.start(checkpt_file=checkpt_file)
+        converter.start(checkpt_file)
     except Exception as e:
         logger.exception(e)
         raise e

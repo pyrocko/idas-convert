@@ -3,6 +3,7 @@ from time import time
 from datetime import timedelta
 
 from pyrocko.guts import String, Float
+from pyrocko.util import tts
 
 from .plugin import Plugin, PluginConfig, register_plugin
 from .utils import sizeof_fmt
@@ -21,7 +22,7 @@ class TelegramBot(Plugin):
 
         self.status_interval = status_interval
         self.started = time()
-        self._next_status = self.started + status_interval
+        self._next_status = self.started
 
         self.bot = telebot.TeleBot(self.token)
 
@@ -66,28 +67,19 @@ class TelegramBot(Plugin):
             logger.exception(e)
 
     def send_finished(self, *args):
-        s = self.parent.stats
+        p = self.parent
+        duration = str(timedelta(seconds=p.duration))[:-7]
         self.send_message(
-            'Finished processing {s.nfiles_processed} files'
-            ' ({size_processed}) in {s.duration}.'.format(
-                s=s,
-                size_processed=sizeof_fmt(s.io_load_bytes_total)))
+            f'Finished processing {p.nfiles_processed} files'
+            f' ({sizeof_fmt(p.bytes_loaded)}) in {duration}.')
 
     def send_status(self, *args):
         if time() < self._next_status:
             return
 
         logger.debug('sending status message')
-        stats = self.parent.stats
-        self.send_message(
-            'Processed {s.nfiles_processed}/{s.nfiles_total} files '
-            ' ({size_processed} @ {s.io_load_speed_avg:.1f} MB/s).'
-            ' Head is at {s.processed_tmax_str:.19}.'
-            ' Estimated time remaining {s.time_remaining_str}. '.format(
-                s=stats,
-                size_processed=sizeof_fmt(stats.io_load_bytes_total)))
-
-        self._next_status += self.status_interval
+        self.send_message(self.parent.get_status())
+        self._next_status = time() + self.status_interval
 
     def __del__(self):
         dt = timedelta(seconds=time() - self.started)

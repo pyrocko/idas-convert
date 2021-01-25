@@ -18,8 +18,11 @@ idas_convert dump_config
 ### Example Config
 ```yaml
 --- !idas.iDASConvertConfig
-# Loading TDMS in parallel
-batch_size: 1
+# Loading TDMS in parallel and process
+nthreads_loading: 1
+nthreads_processing: 8
+queue_size: 32
+processing_batch_size: 8
 
 # Threads used for downsampling the data
 nthreads: 8
