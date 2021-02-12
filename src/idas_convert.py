@@ -277,6 +277,9 @@ class SaveMSeedThread(threading.Thread):
     def __init__(self, in_queue, outpath,
                  record_length=4096, steim=2, checkpt_file=None):
         super().__init__()
+        assert steim in (1, 2)
+        assert record_length in io.mseed.VALID_RECORD_LENGTHS
+
         self.queue = in_queue
         self.outpath = outpath
         self.record_length = record_length
