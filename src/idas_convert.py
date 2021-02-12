@@ -275,12 +275,15 @@ class ProcessingThread(threading.Thread):
 class SaveMSeedThread(threading.Thread):
 
     def __init__(self, in_queue, outpath,
-                 record_length=4096, checkpt_file=None):
+                 record_length=4096, steim=2, checkpt_file=None):
         super().__init__()
         self.queue = in_queue
         self.outpath = outpath
         self.record_length = record_length
+        self.steim = steim
         self.checkpt_file = checkpt_file
+
+        self.touched_files = set()
         self.tmax = 0.
 
         self.processed_files = queue.Queue()
@@ -311,10 +314,22 @@ class SaveMSeedThread(threading.Thread):
                 return
 
             t_start = time()
+
+            filenames = set(tr.fill_template(self.outpath) for tr in traces)
+            for tr, fn in zip(traces, filenames):
+                if op.exists(fn) and fn not in self.touched_files:
+                    tr_existing = io.load(fn, getdata=False)[0]
+                    if tr_existing.tmax > tr.tmax:
+                        logger.warn('file %s exists! Skipping trace', fn)
+                        traces.pop(tr)
+
+            self.touched_files.update(filenames)
+
             out_files = io.save(
                 traces, self.outpath,
                 format='mseed',
                 record_length=self.record_length,
+                steim=self.steim,
                 append=True)
 
             if self.checkpt_file is not None:
@@ -343,7 +358,7 @@ class iDASConvert(object):
 
     def __init__(
             self, paths, outpath,
-            downsample_to=200., record_length=4096,
+            downsample_to=200., record_length=4096, steim=2,
             new_network_code='ID', new_channel_code='HSF',
             channel_selection=None, tmin=None, tmax=None,
             nthreads_loading=8, nthreads_processing=24,
@@ -421,7 +436,7 @@ class iDASConvert(object):
         self.processing_thread.start()
 
         self.save_thread = SaveMSeedThread(
-            self.save_queue, self.outpath, record_length)
+            self.save_queue, self.outpath, record_length, steim)
         self.save_thread.start()
 
     @property
@@ -603,6 +618,9 @@ class iDASConvertConfig(Object):
     record_length = Int.T(
         default=4096,
         help='MiniSeeds record length in bytes.')
+    steim = Int.T(
+        default=2,
+        help='Which STEIM compression to use')
 
     plugins = List.T(
         PluginConfig.T(),
@@ -617,7 +635,7 @@ class iDASConvertConfig(Object):
 
         return iDASConvert(
             self.paths, self.outpath,
-            self.downsample_to, self.record_length,
+            self.downsample_to, self.record_length, self.steim,
             self.new_network_code, self.new_channel_code,
             self.channel_selection,
             self.tmin, self.tmax,

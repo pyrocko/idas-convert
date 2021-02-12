@@ -2,11 +2,11 @@ import setuptools
 
 setuptools.setup(
     name="idas-convert",
-    version="0.0.1",
+    version="0.1.0",
     author="Marius Paul Isken",
-    author_email="isken@example.com",
+    author_email="mi@gfz-potsdam.de",
     description="Convert iDAS TDMS data to anything",
-    url="https://git.pyrocko.org/pyrocko/idas-tdms-converter",
+    url="https://git.pyrocko.org/pyrocko/idas-convert",
     package_dir={
         'idas_convert': 'src'
     },
