@@ -42,6 +42,8 @@ downsample_to: 200.0
 
 # MiniSeed record length
 record_length: 4096
+# MiniSeed STEIM compression
+steim: 2
 
 plugins:
 
