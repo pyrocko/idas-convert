@@ -8,6 +8,7 @@ Python 3 requirements:
 
 * `pyrocko <https://pyrocko.org>`_
 * telebot (optional)
+* `numpy <https://numpy.org>`_
 
 Installation using pip
 
@@ -51,7 +52,7 @@ In case of an abort or error the conversion can be resumed with:
 Configuration
 -------------
 
-The conversion tools are configured with a `YAML <https://en.wikipedia.org/wiki/YAML>`_ file. This file is then **executed** by ``idas_convert`` CLI programm.
+The conversion tools are configured with a `YAML <https://en.wikipedia.org/wiki/YAML>`_ file. This file is then _executed_ by ``idas_convert`` CLI programm.
 
 .. code-block :: YAML
 
@@ -98,8 +99,11 @@ The conversion tools are configured with a `YAML <https://en.wikipedia.org/wiki/
     # A Telegram bot to keep up-to-date with the process
     - !idas_convert.telegram_bot.TelegramBotConfig
     enabled: false
-    token: Telegram Token
-    chat_id: Telegram Chat ID, e.g. -456413218
+    # Telegram API Token
+    token: 9e98b8c0567149eb861838a1d770be7d
+    # Telegram Chat ID
+    chat_id: -1237123123
+    # A status message will be dispatched every 3600 s
     status_interval: 3600.0
 
 Plugins
@@ -107,7 +111,7 @@ Plugins
 
 The following plugins can be configured in the ``plugins`` list in the YAML file.
 
-Telegram bot
+Telegram Bot
 ^^^^^^^^^^^^
 
 A Telegram bot can be configured to keep up-to-date with the processing progress.
@@ -126,7 +130,7 @@ Details about the Telegram ``token`` and ``chat_id`` can be found `here <https:/
     status_interval: 3600.0
 
 
-GFZ Tape interaction
+GFZ Tape Interaction
 ^^^^^^^^^^^^^^^^^^^^
 
 The `GFZ German Research Centre for Geosciences <https://gfz-potsdam.de>`_ maintains a tape storage system, details about the system `here <https://www.golem.de/news/bandlaufwerke-als-backupmedium-ein-bisschen-tetris-spielen-1906-141575.html>`_ (in German).
