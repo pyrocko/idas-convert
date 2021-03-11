@@ -60,8 +60,11 @@ plugins:
 # A Telegram bot to keep up-to-date with the process
 - !idas_convert.telegram_bot.TelegramBotConfig
   enabled: false
-  token: Telegram Token
-  chat_id: Telegram Chat ID, e.g. -456413218
+  # Telegram API Token
+  token: 9e98b8c0567149eb861838a1d770be7d
+  # Telegram Chat ID
+  chat_id: -1237123123
+  # A status message will be dispatched every 3600 s
   status_interval: 3600.0
 ```
 
