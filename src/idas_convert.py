@@ -3,6 +3,7 @@ import re
 import logging
 import threading
 import queue
+import tempfile
 
 from time import time, sleep
 from glob import iglob
@@ -12,9 +13,11 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as num
+
 from pyrocko import io, trace
 from pyrocko.io.tdms_idas import detect as detect_tdms
 from pyrocko.util import tts
+from pyrocko.gui.marker import Marker
 
 from pyrocko.guts import Object, String, Int, List, Timestamp
 
@@ -23,6 +26,9 @@ from .meta import Path
 from .utils import Signal, sizeof_fmt
 
 guts_prefix = 'idas'
+
+DEFAULT_NETWORK_CODE = 'ID'
+DEFAULT_CHANNEL_CODE = 'HSF'
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('idas_convert')
@@ -34,7 +40,7 @@ op = os.path
 day = 3600. * 24
 
 
-def split(tr, time):
+def split_trace(tr, time):
     try:
         return (tr.chop(tr.tmin, time, inplace=False),
                 tr.chop(time, tr.tmax, inplace=False, include_last=True))
@@ -44,8 +50,8 @@ def split(tr, time):
 
 def tdms_guess_time(path):
     fn = op.splitext(op.basename(path))[0]
-    time_str = fn[-19:]
-    return datetime.strptime(time_str, '%Y%m%d_%H%M%S.%f').timestamp()
+    time_str = fn[-19:] + '+0000'
+    return datetime.strptime(time_str, '%Y%m%d_%H%M%S.%f%z').timestamp()
 
 
 def detect_files(path):
@@ -67,9 +73,71 @@ def detect_files(path):
     return files
 
 
+def same_markers(m1, m2):
+    diff_tmin = None
+    diff_tmax = None
+
+    if m1.tmin and m2.tmin and \
+            round(m1.tmin, 3) == round(m2.tmin, 3):
+        return True
+
+    if m1.tmax and m2.tmax and \
+            round(m1.tmax, 3) == round(m2.tmax, 3):
+        return True
+
+    return False
+
+class MarkerLog(object):
+
+
+    def __init__(
+            self,
+            network_code=DEFAULT_NETWORK_CODE,
+            channel_code=DEFAULT_CHANNEL_CODE):
+
+        self.marker_file = None
+        self.network_code = network_code
+        self.channel_code = channel_code
+
+        self.markers = []
+
+    def set_marker_file(self, marker_file):
+        if marker_file and op.exists(marker_file):
+            logger.info('Loading existing markers from %s', marker_file)
+            self.markers = Marker.load_markers(marker_file)
+        self.marker_file = marker_file
+
+    @property
+    def nmarkers(self):
+        return len(markers)
+
+    def new_marker(self, tmin, tmax=None, kind=0):
+
+        marker = Marker(
+            nslc_ids=[(self.network_code, '*', '', self.channel_code)],
+            tmin=tmin,
+            tmax=tmax,
+            kind=kind
+        )
+
+        for m in self.markers:
+            if same_markers(m, marker):
+                return
+
+        self.markers.append(marker)
+        self.save_markers(marker)
+
+    def save_markers(self, marker):
+        if not self.marker_file:
+            return
+        logger.debug('Writing out marker')
+        Marker.save_markers(self.markers, self.marker_file)
+
+
 class LoadTDMSThread(threading.Thread):
 
-    def __init__(self, fn_queue, traces_queue):
+    def __init__(self, fn_queue, traces_queue, marker_log,
+                 check_zero_value=True):
         super().__init__()
         self.fn_queue = fn_queue
         self.traces_queue = traces_queue
@@ -78,9 +146,38 @@ class LoadTDMSThread(threading.Thread):
 
         self.stop = threading.Event()
 
+        self.check_zero_value = check_zero_value
+        self.marker_log = marker_log
+
     @property
     def bytes_input_rate(self):
         return self.bytes_loaded / (self.time_loading or 1.)
+
+    def qc_zero_value_trace(self, traces):
+        if not traces:
+            return
+
+        tr = traces[0]
+        if tr.ydata[-1] != 0.:
+            return
+
+        tmax = tr.tmax
+        tmin = tmax
+        nsamples = 0
+        for sample in tr.ydata[::-1]:
+            if sample != 0.:
+                break
+            tmin -= tr.deltat
+            nsamples += 1
+
+        if nsamples == 1:
+            return
+
+        logger.warning(
+            'Zero value gap detected %s - %s (%d samples)',
+            tts(tmin), tts(tmax), nsamples)
+
+        self.marker_log.new_marker(tmin, tmax, kind=0)
 
     def run(self):
         logger.info('Starting loading thread %s', self.name)
@@ -96,8 +193,11 @@ class LoadTDMSThread(threading.Thread):
             traces = io.load(fn, format='tdms_idas')
             fsize = op.getsize(fn)
             self.time_loading += time() - t_start
-
             self.bytes_loaded += fsize
+
+            if self.check_zero_value:
+                self.qc_zero_value_trace(traces)
+
             self.traces_queue.put((ifn, traces, fn, fsize))
 
             self.fn_queue.task_done()
@@ -112,7 +212,11 @@ def process_data(args):
     tmin = tmin or trace.tmin
     tmax = tmax or trace.tmax
 
+    ds = datetime.utcfromtimestamp
+
     if tmin > trace.tmax or tmax < trace.tmin:
+        print('limits', ds(tmin), ds(tmax))
+        print('trace', ds(trace.tmin), ds(trace.tmax))
         return None
 
     trace.downsample_to(deltat)
@@ -141,7 +245,8 @@ class ProcessingThread(threading.Thread):
 
     def __init__(self, processing_queue, out_queue,
                  downsample_to=200.,
-                 new_network_code='ID', new_channel_code='HSF',
+                 new_network_code=DEFAULT_NETWORK_CODE,
+                 new_channel_code=DEFAULT_CHANNEL_CODE,
                  channel_selection=None,
                  tmin=None, tmax=None, nthreads=12, batch_size=12):
         super().__init__()
@@ -235,8 +340,8 @@ class ProcessingThread(threading.Thread):
                     repeat(1./self.downsample_to),
                     repeat(batch_tmin), repeat(self.tmax))))
             trs_ds = list(filter(lambda tr: tr is not None, trs_ds))
-
             if not trs_ds:
+                logger.warning('Downsampled traces are empty')
                 continue
 
             for tr in trs_ds:
@@ -246,14 +351,16 @@ class ProcessingThread(threading.Thread):
             batch_tmax = max(tr.tmax for tr in trs_ds)
             batch_tmin = min(tr.tmin for tr in trs_ds)
 
+
             # Split traces at day break
-            dt_min = datetime.fromtimestamp(batch_tmin)
-            dt_max = datetime.fromtimestamp(batch_tmax)
+            dt_min = datetime.utcfromtimestamp(batch_tmin)
+            dt_max = datetime.utcfromtimestamp(batch_tmax)
 
             if dt_min.date() != dt_max.date():
                 dt_split = datetime.combine(dt_max.date(), datetime.min.time())
                 tsplit = dt_split.timestamp()
-                trs_ds = list(chain(*(split(tr, tsplit) for tr in trs_ds)))
+                trs_ds = list(chain(*(split_trace(tr, tsplit) for tr in trs_ds)))
+
 
             batch_tmax += self.deltat
             batch_tmin = batch_tmax
@@ -274,7 +381,7 @@ class ProcessingThread(threading.Thread):
 
 class SaveMSeedThread(threading.Thread):
 
-    def __init__(self, in_queue, outpath,
+    def __init__(self, in_queue, outpath, marker_log,
                  record_length=4096, steim=2, checkpt_file=None):
         super().__init__()
         assert steim in (1, 2)
@@ -282,6 +389,7 @@ class SaveMSeedThread(threading.Thread):
 
         self.queue = in_queue
         self.outpath = outpath
+        self.marker_log = marker_log
         self.record_length = record_length
         self.steim = steim
         self.checkpt_file = checkpt_file
@@ -324,7 +432,7 @@ class SaveMSeedThread(threading.Thread):
                     tr_existing = io.load(fn, getdata=False)[0]
                     if tr_existing.tmax > tr.tmax:
                         logger.warn('file %s exists! Skipping trace', fn)
-                        traces.pop(tr)
+                        traces.remove(tr)
 
             self.touched_files.update(filenames)
 
@@ -332,12 +440,12 @@ class SaveMSeedThread(threading.Thread):
                 traces, self.outpath,
                 format='mseed',
                 record_length=self.record_length,
-                steim=self.steim,
+                # steim=self.steim,
                 append=True)
 
             if self.checkpt_file is not None:
-                with open(self.checkpt_file, 'w') as f:
-                    f.write(str(tmax))
+                    with open(self.checkpt_file, 'w') as f:
+                        f.write(str(tmax))
 
             for fn in out_files:
                 self.out_files[fn] = op.getsize(fn)
@@ -362,7 +470,8 @@ class iDASConvert(object):
     def __init__(
             self, paths, outpath,
             downsample_to=200., record_length=4096, steim=2,
-            new_network_code='ID', new_channel_code='HSF',
+            new_network_code=DEFAULT_NETWORK_CODE,
+            new_channel_code=DEFAULT_CHANNEL_CODE,
             channel_selection=None, tmin=None, tmax=None,
             nthreads_loading=8, nthreads_processing=24,
             queue_size=32, processing_batch_size=8, plugins=[]):
@@ -378,6 +487,7 @@ class iDASConvert(object):
             try:
                 fn_tmin = tdms_guess_time(fn)
             except ValueError:
+                logger.warning('Could not guess time for %s', op.filename(fn))
                 return True
 
             if tmax is not None and fn_tmin > tmax:
@@ -389,7 +499,9 @@ class iDASConvert(object):
         if tmin is not None or tmax is not None:
             nfiles_before = len(files)
             files = list(filter(in_timeframe, files))
-            logger.info('Filtered %d files', nfiles_before - len(files))
+            logger.info(
+                'Filtered %d/%d files',
+                nfiles_before - len(files), nfiles_before)
 
         if not files:
             raise OSError('No files selected for conversion.')
@@ -399,6 +511,7 @@ class iDASConvert(object):
         self.files = sorted(files, key=lambda f: op.basename(f))
         self.bytes_total = sum([op.getsize(f) for f in self.files])
         logger.info('Got %s of data', sizeof_fmt(self.bytes_total))
+
         self.files_all = self.files.copy()
         self.nfiles = len(self.files_all)
         self.nfiles_processed = 0
@@ -423,10 +536,14 @@ class iDASConvert(object):
             logger.info('Activating plugin %s', plugin.__class__.__name__)
             plugin.set_parent(self)
 
+        self.marker_log = MarkerLog()
+
         # Starting worker threads
         self.load_threads = []
         for ithread in range(nthreads_loading):
-            thread = LoadTDMSThread(self.load_fn_queue, self.processing_queue)
+            thread = LoadTDMSThread(
+                self.load_fn_queue, self.processing_queue,
+                self.marker_log)
             thread.name = 'LoadTDMS-%02d' % ithread
             thread.start()
             self.load_threads.append(thread)
@@ -439,7 +556,7 @@ class iDASConvert(object):
         self.processing_thread.start()
 
         self.save_thread = SaveMSeedThread(
-            self.save_queue, self.outpath, record_length, steim)
+            self.save_queue, self.outpath, marker_log, record_length, steim)
         self.save_thread.start()
 
     @property
@@ -501,7 +618,16 @@ class iDASConvert(object):
     def time_head(self):
         return self.save_thread.get_tmax()
 
-    def start(self, checkpt_file=None):
+    def start(self, checkpt_file=None, log_file=None, marker_file=None):
+        if log_file:
+            fh = logging.FileHandler(log_file)
+            fh.setFormatter(logging.Formatter(
+                '[%(asctime)s] %(levelname)s: %(message)s'))
+            logger.addHandler(fh)
+
+        if marker_file:
+            self.marker_log.set_marker_file(marker_file)
+
         logger.info('Starting conversion of %d files', self.nfiles)
         ifn = 0
         self.save_thread.set_checkpt_file(checkpt_file)
@@ -602,10 +728,10 @@ class iDASConvertConfig(Object):
         optional=True,
         help='Limit the conversion so these channels, regex allowed')
     new_network_code = String.T(
-        default='ID',
+        default=DEFAULT_NETWORK_CODE,
         help='Network code for MiniSeeds.')
     new_channel_code = String.T(
-        default='HSF',
+        default=DEFAULT_CHANNEL_CODE,
         help='Channel code for MiniSeeds.')
 
     tmin = Timestamp.T(
@@ -635,6 +761,12 @@ class iDASConvertConfig(Object):
         for plugin_config in self.plugins:
             if plugin_config.enabled:
                 plugins.append(plugin_config.get_plugin())
+
+        if self.tmin is not None and self.tmax is None:
+            raise AttributeError('tmax is not set')
+
+        if self.tmax is not None and self.tmin is None:
+            raise AttributeError('tmin is not set')
 
         return iDASConvert(
             self.paths, self.outpath,

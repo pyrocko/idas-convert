@@ -7,8 +7,8 @@ Installation
 Python 3 requirements:
 
 * `pyrocko <https://pyrocko.org>`_
+* `NumPy <https://numpy.org>`_
 * telebot (optional)
-* `numpy <https://numpy.org>`_
 
 Installation using pip
 
@@ -21,9 +21,9 @@ Or installation from source:
 
 .. code-block :: bash
 
-   git clone https://git.pyrocko.org/pyrocko/idas-convert
+   git clone https://git.pyrocko.org/pyrocko/idas-convert.git
    cd idas-convert
-   pyhon3 setup.py install
+   python3 setup.py install
 
 Check out the help with:
 
@@ -35,24 +35,24 @@ Check out the help with:
 Quickstart
 ----------
 
-Before starting the convertion edit the config file. See details of the YAML config in the :doc:`config`.
+Before starting the conversion edit the config file. See details of the YAML config in the :doc:`config`.
 
 .. code-block :: bash
 
    idas_convert dump_config > my_config.yml
-   idas-convert my_config.yml
+   idas_convert my_config.yml
 
 In case of an abort or error the conversion can be resumed with:
 
 .. code-block :: bash
 
-   idas-convert --resume my_config.yml
+   idas_convert --resume my_config.yml
 
 
 Configuration
 -------------
 
-The conversion tools are configured with a `YAML <https://en.wikipedia.org/wiki/YAML>`_ file. This file is then _executed_ by ``idas_convert`` CLI programm.
+The conversion tools are configured with a `YAML <https://en.wikipedia.org/wiki/YAML>`_ file. This file is then _executed_ by ``idas_convert`` CLI program.
 
 .. code-block :: YAML
 
@@ -76,6 +76,11 @@ The conversion tools are configured with a `YAML <https://en.wikipedia.org/wiki/
     # Overwrite mseed meta information
     new_network_code: ID
     new_channel_code: HSF
+
+    # Start time (optional)
+    # tmin: 2021-05-03 00:00:00.00
+    # End time (optional)
+    # tmax: 2021-05-06 00:00:00.00
 
     downsample_to: 200.0
 

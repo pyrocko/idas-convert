@@ -3,6 +3,7 @@ import argparse
 import logging
 import sys
 import os
+from pathlib import Path
 
 from pyrocko.guts import load
 from pyrocko.util import tts
@@ -40,9 +41,12 @@ def main():
         sys.exit(0)
 
     config = load(filename=args.config)
+    fn_config = Path(args.config)
 
-    config_fn = op.splitext(op.basename(args.config))[0]
-    checkpt_file = op.join(op.dirname(args.config), '.progress-' + config_fn)
+    config_fn = op.splitext(fn_config.name)[0]
+    checkpt_file = op.abspath(fn_config.parent / ('.progress-' + config_fn))
+    log_file = op.abspath(fn_config.parent / (config_fn + '.log'))
+    marker_file = op.abspath(fn_config.parent / (config_fn + '-marker.txt'))
 
     if op.exists(checkpt_file) and args.resume:
         with open(checkpt_file, 'r') as f:
@@ -63,7 +67,7 @@ def main():
     converter = config.get_converter()
 
     try:
-        converter.start(checkpt_file)
+        converter.start(checkpt_file, log_file, marker_file)
     except Exception as e:
         logger.exception(e)
         raise e
