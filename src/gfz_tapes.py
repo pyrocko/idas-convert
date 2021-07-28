@@ -31,6 +31,13 @@ class GFZTapes(Plugin):
         self.requested_files = set()
         self._initial_stage = False
 
+        if not op.exists(path_tapes_mount):
+            raise OSError(
+                'Tape mount directory %s does not exist' % path_tapes_mount)
+        if not op.isdir(path_tapes_mount):
+            raise OSError(
+                'Tape mount %s is not a directory' % path_tapes_mount)
+
     def set_parent(self, parent):
         super().set_parent(parent)
 

@@ -4,6 +4,7 @@ import logging
 import threading
 import queue
 import tempfile
+import yaml
 
 from time import time, sleep
 from glob import iglob
@@ -351,7 +352,6 @@ class ProcessingThread(threading.Thread):
             batch_tmax = max(tr.tmax for tr in trs_ds)
             batch_tmin = min(tr.tmin for tr in trs_ds)
 
-
             # Split traces at day break
             dt_min = datetime.utcfromtimestamp(batch_tmin)
             dt_max = datetime.utcfromtimestamp(batch_tmax)
@@ -360,7 +360,6 @@ class ProcessingThread(threading.Thread):
                 dt_split = datetime.combine(dt_max.date(), datetime.min.time())
                 tsplit = dt_split.timestamp()
                 trs_ds = list(chain(*(split_trace(tr, tsplit) for tr in trs_ds)))
-
 
             batch_tmax += self.deltat
             batch_tmin = batch_tmax
@@ -419,7 +418,7 @@ class SaveMSeedThread(threading.Thread):
         logger.info('Starting MiniSeed saving thread')
         while True:
             tmax, traces, fns = self.queue.get()
-            if traces is False:
+            if traces is False or not traces:
                 logger.debug('Shutting down saving thread')
                 self.queue.task_done()
                 return
@@ -440,7 +439,7 @@ class SaveMSeedThread(threading.Thread):
                 traces, self.outpath,
                 format='mseed',
                 record_length=self.record_length,
-                # steim=self.steim,
+                steim=self.steim,
                 append=True)
 
             if self.checkpt_file is not None:
@@ -449,6 +448,15 @@ class SaveMSeedThread(threading.Thread):
 
             for fn in out_files:
                 self.out_files[fn] = op.getsize(fn)
+
+            rtr = traces[0]
+            for dn in set(op.dirname(fn) for fn in out_files):
+                fn_meta = op.join(dn, 'metadata.yml')
+                if op.exists(fn_meta):
+                    continue
+                with open(fn_meta, 'w') as f:
+                    logger.info('Writing out metadata to %s', fn_meta)
+                    yaml.dump(rtr.meta, f)
 
             self.tmax = tmax
 
@@ -556,7 +564,8 @@ class iDASConvert(object):
         self.processing_thread.start()
 
         self.save_thread = SaveMSeedThread(
-            self.save_queue, self.outpath, marker_log, record_length, steim)
+            self.save_queue, self.outpath, self.marker_log,
+            record_length, steim)
         self.save_thread.start()
 
     @property
@@ -736,20 +745,20 @@ class iDASConvertConfig(Object):
 
     tmin = Timestamp.T(
         optional=True,
-        help='Start time for the conversion')
+        help='Start time for the conversion.')
     tmax = Timestamp.T(
         optional=True,
-        help='End time for the conversion')
+        help='End time for the conversion.')
 
     downsample_to = Int.T(
         default=200.,
-        help='Target sample rate for mseed.')
+        help='Target sample rate for mseed [Hz].')
     record_length = Int.T(
         default=4096,
-        help='MiniSeeds record length in bytes.')
+        help='MiniSeeds record length in bytes. Default 4096 bytes.')
     steim = Int.T(
         default=2,
-        help='Which STEIM compression to use')
+        help='Which STEIM compression to use. Default 2.')
 
     plugins = List.T(
         PluginConfig.T(),
