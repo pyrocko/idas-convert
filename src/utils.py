@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 GFZ German Research Centre for Geosciences
+#
+# SPDX-License-Identifier: GLP-3.0-or-later
+
 def sizeof_fmt(num, suffix='B'):
     for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if abs(num) < 1024.0:

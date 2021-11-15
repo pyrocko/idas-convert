@@ -84,3 +84,13 @@ idas_convert my_config.yml
 ```
 
 See `idas_convert -h` for more options.
+
+### Citation
+
+DAS Convert - Convert distributed acoustic sensing data, Isken, Marius Paul; Christopher, Wollin; Heimann, Sebastian; Javier, Quinteros; Karl-Heinz, Jäckel; Philippe, Jousset (2021): DAS Convert - Convert distributed acoustic sensing data. V. 1.0. GFZ Data Services. https://doi.org/10.5880/GFZ.2.1.2021.005
+
+### Copyright
+
+```
+GFZ German Research Centre for Geosciences GFZ, Telegrafenberg, 14473 Potsdam, Germany
+```

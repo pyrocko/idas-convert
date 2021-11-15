@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 GFZ German Research Centre for Geosciences
+#
+# SPDX-License-Identifier: GLP-3.0-or-later
+
 from pyrocko.guts import TBase, ValidationError, String
 
 MAG = dict(k=3, M=6, G=9, T=12, P=15)
