@@ -667,8 +667,8 @@ class iDASConvert(object):
         logger.debug('Joined load queue')
 
         logger.debug('Joining processing queue')
-        self.processing_queue.join()
         self.processing_thread.stop.set()
+        self.processing_queue.join()
         logger.debug('Joined processing queue')
 
         # Ensure it is the last element
