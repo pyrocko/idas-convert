@@ -1,4 +1,4 @@
-# iDAS TDMS Converter
+# DAS Convert
 
 Convert and downsample distribute acoustic sensing (DAS) data acquired by Silixa iDAS to seismological data formats. Main purpose is to quickly convert and downsample massive amounts of high-resolution TDMS data to MiniSeed.
 
@@ -21,7 +21,7 @@ Find the online documentation at https://pyrocko.org/idas_convert/docs/.
 Dump a config file
 
 ```sh
-idas_convert dump_config
+das_convert dump_config
 ```
 
 ### Example Config
@@ -57,7 +57,7 @@ steim: 2
 plugins:
 
 # A plugin handling the communication with the GFZ tage file system
-- !idas_convert.gfz_tapes.GFZTapesConfig
+- !das_convert.gfz_tapes.GFZTapesConfig
   enabled: false
   bytes_stage: 1T
   waterlevel: 0.6
@@ -67,7 +67,7 @@ plugins:
   path_tapes_prefix: /archive_FO1/RAW/
 
 # A Telegram bot to keep up-to-date with the process
-- !idas_convert.telegram_bot.TelegramBotConfig
+- !das_convert.telegram_bot.TelegramBotConfig
   enabled: false
   # Telegram API Token
   token: 9e98b8c0567149eb861838a1d770be7d
@@ -80,17 +80,24 @@ plugins:
 ### Start Conversion
 
 ```sh
-idas_convert my_config.yml
+das_convert my_config.yml
 ```
 
-See `idas_convert -h` for more options.
+See `das_convert -h` for more options.
 
 ### Citation
 
 DAS Convert - Convert distributed acoustic sensing data, Isken, Marius Paul; Christopher, Wollin; Heimann, Sebastian; Javier, Quinteros; Karl-Heinz, Jäckel; Philippe, Jousset (2021): DAS Convert - Convert distributed acoustic sensing data. V. 1.0. GFZ Data Services. https://doi.org/10.5880/GFZ.2.1.2021.005
 
+### Legal Stuff
+```
+Licence: GNU General Public License, Version 3, 29 June 2007
+
+Copyright © 2021 Helmholtz Centre Potsdam GFZ German Research Centre for Geosciences, Potsdam, Germany
+
+DAS Convert is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. DAS Convert is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
+```
+
 ### Copyright
 
-```
-GFZ German Research Centre for Geosciences GFZ, Telegrafenberg, 14473 Potsdam, Germany
-```
+> GFZ German Research Centre for Geosciences GFZ, Telegrafenberg, 14473 Potsdam, Germany
